@@ -69,7 +69,7 @@ export function EmailView({
       .update({ is_read: true })
       .eq("id", email.id)
       .then(() => onMarkRead(email.id))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email?.id, email?.is_read])
 
   if (!email) {

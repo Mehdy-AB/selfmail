@@ -24,7 +24,8 @@ const FROM_OPTIONS = (process.env.NEXT_PUBLIC_FROM_ADDRESSES ?? "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean)
-const safeFromOptions = FROM_OPTIONS.length > 0 ? FROM_OPTIONS : ["noreply@example.com"]
+const safeFromOptions =
+  FROM_OPTIONS.length > 0 ? FROM_OPTIONS : ["noreply@example.com"]
 
 interface ComposerProps {
   initialData?: {

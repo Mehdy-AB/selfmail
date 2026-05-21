@@ -8,13 +8,17 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 async function requireAuth() {
   const auth = await createClient()
-  const { data: { user } } = await auth.auth.getUser()
+  const {
+    data: { user },
+  } = await auth.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 }
 
 function validateFromAddress(fromAddress: string) {
   const allowed = (process.env.NEXT_PUBLIC_FROM_ADDRESSES ?? "")
-    .split(",").map(s => s.trim()).filter(Boolean)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
   if (allowed.length > 0 && !allowed.includes(fromAddress)) {
     throw new Error("Invalid sender address")
   }
