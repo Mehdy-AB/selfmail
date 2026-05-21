@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useEffect } from "react"
-import { X, Paperclip, Send, MoreVertical, Pencil } from "lucide-react"
+import { X, Send, MoreVertical, Pencil } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,11 +67,13 @@ export function Composer({
 
   useEffect(() => {
     if (open) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setTo(initialData?.to ?? "")
       setSubject(initialData?.subject ?? "")
       setBody(initialData?.body ?? "")
       setActiveDraftId(initialData?.draftId ?? null)
       setError(null)
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [open, initialData])
 
@@ -282,7 +284,6 @@ export function Composer({
                   onChange={(e) => setTo(e.target.value)}
                   className="flex-1 bg-transparent px-1 py-2 text-sm outline-none"
                   autoComplete="email"
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
               </div>

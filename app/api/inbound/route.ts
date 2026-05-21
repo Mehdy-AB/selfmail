@@ -1,6 +1,8 @@
 import { Webhook } from "svix"
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase/service"
+
+const supabase = createServiceClient()
 
 interface ResendAttachment {
   filename: string

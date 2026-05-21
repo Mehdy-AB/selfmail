@@ -69,7 +69,8 @@ export function EmailView({
       .update({ is_read: true })
       .eq("id", email.id)
       .then(() => onMarkRead(email.id))
-  }, [email?.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email?.id, email?.is_read])
 
   if (!email) {
     return (
@@ -173,13 +174,15 @@ export function EmailView({
         {email.body_html ? (
           <iframe
             srcDoc={email.body_html}
-            sandbox="allow-same-origin"
+            sandbox=""
             className="w-full border-0"
-            style={{ height: iframeHeight > 0 ? iframeHeight : "100%" }}
+            style={{ height: iframeHeight > 0 ? iframeHeight : 600 }}
             onLoad={(e) => {
-              const doc = e.currentTarget.contentDocument
-              if (doc) {
-                setIframeHeight(doc.documentElement.scrollHeight)
+              try {
+                const doc = e.currentTarget.contentDocument
+                if (doc) setIframeHeight(doc.documentElement.scrollHeight)
+              } catch {
+                // sandboxed without allow-same-origin; default height is used
               }
             }}
             title={email.subject}

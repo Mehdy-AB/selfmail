@@ -52,7 +52,8 @@ Edit `.env.local` with your values:
 | `RESEND_WEBHOOK_SECRET` | Resend inbound webhook signing secret |
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Your Supabase anon/publishable key |
-| `ALLOWED_EMAIL` | Email address that can sign in (leave unset to allow any) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — used server-side only, never exposed to the browser |
+| `ALLOWED_EMAIL` | **Strongly recommended.** Email address that can sign in. If unset, any person who can receive a magic link can access the app. |
 | `FROM_NAME` | Display name for outbound emails |
 | `NEXT_PUBLIC_FROM_ADDRESSES` | Comma-separated from-addresses shown in the composer |
 | `NEXT_PUBLIC_APP_DOMAIN` | Your domain for UI branding |

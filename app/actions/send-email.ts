@@ -1,9 +1,24 @@
 "use server"
 
 import { Resend } from "resend"
-import { supabase } from "@/lib/supabase"
+import { createServiceClient } from "@/lib/supabase/service"
+import { createClient } from "@/lib/supabase/server"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+async function requireAuth() {
+  const auth = await createClient()
+  const { data: { user } } = await auth.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+}
+
+function validateFromAddress(fromAddress: string) {
+  const allowed = (process.env.NEXT_PUBLIC_FROM_ADDRESSES ?? "")
+    .split(",").map(s => s.trim()).filter(Boolean)
+  if (allowed.length > 0 && !allowed.includes(fromAddress)) {
+    throw new Error("Invalid sender address")
+  }
+}
 
 interface SendEmailInput {
   fromAddress: string
@@ -22,7 +37,9 @@ interface SaveDraftInput {
 }
 
 export async function sendEmail(input: SendEmailInput) {
+  await requireAuth()
   const { fromAddress, to, subject, body, draftId } = input
+  validateFromAddress(fromAddress)
 
   const { data, error } = await resend.emails.send({
     from: `${process.env.FROM_NAME ?? "Mail"} <${fromAddress}>`,
@@ -35,9 +52,10 @@ export async function sendEmail(input: SendEmailInput) {
     return { success: false, error: error.message }
   }
 
+  const db = createServiceClient()
+
   if (draftId) {
-    // Convert the existing draft row into the sent email record
-    await supabase
+    await db
       .from("emails")
       .update({
         resend_id: data!.id,
@@ -49,7 +67,7 @@ export async function sendEmail(input: SendEmailInput) {
       })
       .eq("id", draftId)
   } else {
-    await supabase.from("emails").insert({
+    await db.from("emails").insert({
       resend_id: data!.id,
       from_address: fromAddress,
       from_name: process.env.FROM_NAME ?? "Mail",
@@ -65,10 +83,14 @@ export async function sendEmail(input: SendEmailInput) {
 }
 
 export async function saveDraft(input: SaveDraftInput) {
+  await requireAuth()
   const { fromAddress, to, subject, body, draftId } = input
+  validateFromAddress(fromAddress)
+
+  const db = createServiceClient()
 
   if (draftId) {
-    const { error } = await supabase
+    const { error } = await db
       .from("emails")
       .update({
         from_address: fromAddress,
@@ -82,7 +104,7 @@ export async function saveDraft(input: SaveDraftInput) {
     return { success: true, draftId }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("emails")
     .insert({
       from_address: fromAddress,

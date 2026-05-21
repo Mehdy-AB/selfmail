@@ -46,8 +46,9 @@ Key variables:
 - `NEXT_PUBLIC_APP_DOMAIN` — domain used for UI branding (build-time)
 - `RESEND_API_KEY` — Resend API key for sending
 - `RESEND_WEBHOOK_SECRET` — Resend webhook signing secret for inbound
+- `SUPABASE_SERVICE_ROLE_KEY` — service-role key for server actions and API routes (bypasses RLS, server-only)
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — Supabase anon/publishable key
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — Supabase anon/publishable key (browser-safe)
 
 ## Key conventions
 
