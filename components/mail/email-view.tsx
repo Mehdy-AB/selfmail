@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronLeft, Reply, Forward, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -46,6 +46,7 @@ export function EmailView({
   isMobile,
 }: EmailViewProps) {
   const [iframeHeight, setIframeHeight] = useState(0)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [composerData, setComposerData] = useState<{
     to?: string
@@ -60,6 +61,33 @@ export function EmailView({
   const isTrash = folder === "trash"
   const isDraft = folder === "drafts"
   const canDelete = isTrash || isDraft ? !!onPermanentDelete : !!onDelete
+
+  // Measuring once on load runs before the pane has layout and before remote
+  // images arrive, locking in a wrong height. Re-measure on every reflow.
+  useEffect(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    let observer: ResizeObserver | undefined
+    const attach = () => {
+      const doc = iframe.contentDocument
+      if (!doc) return
+      observer?.disconnect()
+      observer = new ResizeObserver(() =>
+        setIframeHeight(doc.documentElement.scrollHeight)
+      )
+      observer.observe(doc.documentElement)
+    }
+
+    iframe.addEventListener("load", attach)
+    // key={email.id} gives a fresh iframe per email, so this first attach
+    // measures about:blank (height falls back to 100%) until load swaps in srcDoc.
+    attach()
+    return () => {
+      iframe.removeEventListener("load", attach)
+      observer?.disconnect()
+    }
+  }, [email?.id, email?.body_html])
 
   useEffect(() => {
     if (!email || email.is_read) return
@@ -173,18 +201,14 @@ export function EmailView({
       <div className="flex-1 overflow-y-auto">
         {email.body_html ? (
           <iframe
+            key={email.id}
+            ref={iframeRef}
             srcDoc={email.body_html}
-            sandbox=""
+            // allow-same-origin is needed to measure the content. Safe only
+            // because allow-scripts is absent: no JS runs in the email.
+            sandbox="allow-same-origin"
             className="w-full border-0"
-            style={{ height: iframeHeight > 0 ? iframeHeight : 600 }}
-            onLoad={(e) => {
-              try {
-                const doc = e.currentTarget.contentDocument
-                if (doc) setIframeHeight(doc.documentElement.scrollHeight)
-              } catch {
-                // sandboxed without allow-same-origin; default height is used
-              }
-            }}
+            style={{ height: iframeHeight > 0 ? iframeHeight : "100%" }}
             title={email.subject}
           />
         ) : (
