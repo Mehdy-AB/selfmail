@@ -5,7 +5,10 @@ import type { NextRequest } from "next/server"
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith("/api/inbound")) {
+  if (
+    pathname.startsWith("/api/inbound") ||
+    pathname.startsWith("/api/keepalive")
+  ) {
     return NextResponse.next()
   }
 

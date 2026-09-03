@@ -57,6 +57,7 @@ Edit `.env.local` with your values:
 | `FROM_NAME` | Display name for outbound emails |
 | `NEXT_PUBLIC_FROM_ADDRESSES` | Comma-separated from-addresses shown in the composer |
 | `NEXT_PUBLIC_APP_DOMAIN` | Your domain for UI branding |
+| `CRON_SECRET` | Optional. Shared secret for the daily keepalive cron; Vercel sends it as `Authorization: Bearer $CRON_SECRET`. Unset leaves `/api/keepalive` public. |
 
 ### 3. Set up the database
 
@@ -88,6 +89,11 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with your email.
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
 Set all environment variables in your Vercel project settings. The inbound webhook URL will be `https://your-app.vercel.app/api/inbound`.
+
+`vercel.json` schedules a daily request to `/api/keepalive`, which runs one
+query so Supabase doesn't pause the project — Free plan projects are paused
+after 7 days of low activity. On a paid plan, delete `vercel.json` and
+`app/api/keepalive/`.
 
 ## Branding
 
