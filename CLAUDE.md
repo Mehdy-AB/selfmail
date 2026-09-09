@@ -19,18 +19,25 @@ pnpm dlx shadcn@latest add <component>
 
 ## Project
 
-A self-hosted email client for managing custom domain email via Resend + Supabase. Built with Next.js 16 App Router, shadcn/ui (radix-nova style, mist base color), and Tailwind CSS v4.
+A self-hosted email client for managing custom domain email via Resend + Supabase.
+It is single-user but multi-mailbox: one Resend API key serves any number of
+addresses across any number of domains. The mailbox list lives in the
+`mailboxes` table and is managed from the UI, not from an env var. Built with Next.js 16 App Router, shadcn/ui (radix-nova style, mist base color), and Tailwind CSS v4.
 
 ## Architecture
 
 - `app/` — Next.js App Router pages and server actions
-  - `app/api/inbound/route.ts` — Resend inbound webhook; verifies svix signature, inserts email + attachments to Supabase
+  - `app/api/inbound/route.ts` — Resend inbound webhook; verifies svix signature, routes the message to a configured mailbox, inserts email + attachments to Supabase
   - `app/actions/send-email.ts` — Server actions for sending (`sendEmail`) and draft management (`saveDraft`) via Resend SDK
+  - `app/actions/mailboxes.ts` — Server actions backing the mailbox settings dialog (`createMailbox`, `updateMailbox`, `deleteMailbox`)
   - `app/auth/callback/route.ts` — Supabase magic-link callback; enforces `ALLOWED_EMAIL` env var
   - `app/layout.tsx` — Root layout; uses `NEXT_PUBLIC_APP_DOMAIN` for dynamic title/description
-- `components/mail/` — Core UI: `Sidebar`, `EmailList`, `EmailCard`, `EmailView`, `Composer`, `SplashScreen`
+- `components/mail/` — Core UI: `Sidebar`, `EmailList`, `EmailCard`, `EmailView`, `Composer`, `SplashScreen`, `MailboxSettings`
+- `components/mail/mailbox-provider.tsx` — client context holding the live mailbox list (Realtime-subscribed); read it with `useMailboxes()` rather than importing the list
 - `components/ui/` — shadcn/ui primitives (added via CLI, not hand-authored)
 - `components/theme-provider.tsx` — next-themes wrapper; `d` hotkey toggles dark/light mode
+- `lib/accounts.ts` — pure mailbox helpers (parse, validate, label, route). Every function takes the mailbox list as its first argument; the module holds no list of its own
+- `lib/mailboxes.ts` — server-only `getMailboxes()`: reads the `mailboxes` table, seeding it once from `NEXT_PUBLIC_MAIL_ACCOUNTS` if the table is empty
 - `lib/supabase/` — SSR-aware Supabase client, server, and middleware helpers
 - `proxy.ts` — Next.js middleware: redirects unauthenticated users to `/login`
 - `supabase/migrations/` — All database migrations in order
@@ -41,8 +48,10 @@ See `.env.example` for all required variables with descriptions.
 
 Key variables:
 - `ALLOWED_EMAIL` — email address permitted to authenticate (server-only)
-- `FROM_NAME` — display name on outbound emails (server-only)
-- `NEXT_PUBLIC_FROM_ADDRESSES` — comma-separated from-addresses in the composer (build-time)
+- `FROM_NAME` — fallback display name for mailboxes saved without one (server-only)
+- `NEXT_PUBLIC_MAIL_ACCOUNTS` — optional one-time import into the `mailboxes` table; ignored once the table has a row (build-time)
+- `MAILBOX_STRICT` — `true` archives inbound mail that matches no configured mailbox (server-only)
+- `NEXT_PUBLIC_FROM_ADDRESSES` — deprecated; same one-time import, read only when `NEXT_PUBLIC_MAIL_ACCOUNTS` is unset (build-time)
 - `NEXT_PUBLIC_APP_DOMAIN` — domain used for UI branding (build-time)
 - `RESEND_API_KEY` — Resend API key for sending
 - `RESEND_WEBHOOK_SECRET` — Resend webhook signing secret for inbound
@@ -56,3 +65,5 @@ Key variables:
 - RSC-first: pages and layouts are Server Components by default; add `"use client"` only when needed
 - Email HTML rendered in `<iframe srcdoc>` to prevent style bleed into the app shell
 - `NEXT_PUBLIC_` prefix required for any env var used in client components (inlined at build time)
+- Client components get the mailbox list from `useMailboxes()`; server code calls `getMailboxes()`. Never import a mailbox list from `lib/accounts.ts` — it has none
+- Every email row carries a `mailbox` column (lowercased address) — the account it belongs to. Inbound sets it from the matched recipient, outbound from the sender

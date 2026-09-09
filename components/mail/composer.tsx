@@ -19,16 +19,29 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { sendEmail, saveDraft } from "@/app/actions/send-email"
+import { findAccount, type MailAccount } from "@/lib/accounts"
+import { useMailboxes } from "./mailbox-provider"
 
-const FROM_OPTIONS = (process.env.NEXT_PUBLIC_FROM_ADDRESSES ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean)
-const safeFromOptions =
-  FROM_OPTIONS.length > 0 ? FROM_OPTIONS : ["noreply@example.com"]
+const NO_MAILBOX: MailAccount = { address: "", name: null }
+
+/** Falls back to the first mailbox when the requested one does not exist. */
+function resolveFrom(options: MailAccount[], address?: string | null): string {
+  const match = address
+    ? options.find(
+        (o) => o.address.toLowerCase() === address.trim().toLowerCase()
+      )
+    : undefined
+  return (match ?? options[0] ?? NO_MAILBOX).address
+}
+
+function optionLabel(account: MailAccount): string {
+  return account.name ? `${account.name} <${account.address}>` : account.address
+}
 
 interface ComposerProps {
   initialData?: {
+    /** Mailbox to send from — a reply answers from the address it arrived on. */
+    fromAddress?: string | null
     to?: string
     subject?: string
     body?: string
@@ -45,6 +58,7 @@ export function Composer({
   onOpenChange: setExternalOpen,
   children,
 }: ComposerProps) {
+  const { mailboxes } = useMailboxes()
   const [internalOpen, setInternalOpen] = useState(false)
 
   const open = externalOpen !== undefined ? externalOpen : internalOpen
@@ -53,7 +67,7 @@ export function Composer({
     else setInternalOpen(val)
   }
 
-  const [fromAddress, setFromAddress] = useState(safeFromOptions[0])
+  const [fromAddress, setFromAddress] = useState("")
   const [to, setTo] = useState("")
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
@@ -78,12 +92,25 @@ export function Composer({
     }
   }, [open, initialData])
 
+  // The sender is settled separately from the rest of the form: the mailbox
+  // list may still be loading when the window opens, and an edit to it while
+  // composing must not wipe what has already been typed.
+  useEffect(() => {
+    if (!open) return
+    /* eslint-disable-next-line react-hooks/set-state-in-effect */
+    setFromAddress((current) =>
+      findAccount(mailboxes, current)
+        ? current
+        : resolveFrom(mailboxes, initialData?.fromAddress)
+    )
+  }, [open, initialData, mailboxes])
+
   function reset() {
     setTo("")
     setSubject("")
     setBody("")
     setActiveDraftId(null)
-    setFromAddress(safeFromOptions[0])
+    setFromAddress(resolveFrom(mailboxes))
     setError(null)
   }
 
@@ -161,7 +188,7 @@ export function Composer({
     doClose()
   }
 
-  const canSend = !isPending && !!to && !!subject && !!body
+  const canSend = !isPending && !!to && !!subject && !!body && !!fromAddress
 
   return (
     <>
@@ -294,18 +321,24 @@ export function Composer({
                 <span className="w-14 shrink-0 py-2 text-sm text-muted-foreground">
                   From
                 </span>
+                {mailboxes.length === 0 && (
+                  <span className="flex-1 py-2 text-sm text-muted-foreground">
+                    No mailboxes yet — add one under Mailboxes in the sidebar
+                  </span>
+                )}
                 <select
                   value={fromAddress}
                   onChange={(e) => setFromAddress(e.target.value)}
+                  hidden={mailboxes.length === 0}
                   className="flex-1 appearance-none bg-transparent py-2 text-sm outline-none"
                 >
-                  {safeFromOptions.map((opt) => (
+                  {mailboxes.map((opt) => (
                     <option
-                      key={opt}
-                      value={opt}
+                      key={opt.address}
+                      value={opt.address}
                       className="bg-popover text-popover-foreground"
                     >
-                      {opt}
+                      {optionLabel(opt)}
                     </option>
                   ))}
                 </select>

@@ -12,13 +12,34 @@ import { EmailView } from "@/components/mail/email-view"
 import { SplashScreen } from "@/components/mail/splash-screen"
 import { supabase } from "@/lib/supabase"
 import type { Email } from "@/lib/types"
+import { OTHER_MAILBOX } from "@/lib/accounts"
+import {
+  MailboxProvider,
+  useMailboxes,
+} from "@/components/mail/mailbox-provider"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
+/** Which sidebar bucket a message belongs to. */
+function mailboxKey(email: Email, known: Set<string>): string {
+  const mailbox = email.mailbox?.toLowerCase() ?? ""
+  return known.has(mailbox) ? mailbox : OTHER_MAILBOX
+}
+
 export default function Page() {
+  return (
+    <MailboxProvider>
+      <Mail />
+    </MailboxProvider>
+  )
+}
+
+function Mail() {
+  const { mailboxes } = useMailboxes()
   const [allEmails, setAllEmails] = useState<Email[]>([])
   const [selected, setSelected] = useState<Email | null>(null)
   const [folder, setFolder] = useState("inbox")
+  const [mailbox, setMailbox] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isMobile = useIsMobile()
@@ -95,7 +116,16 @@ export default function Page() {
     setSelected((prev) => (prev?.id === id ? null : prev))
   }
 
-  const emails = allEmails.filter((e) => {
+  const knownMailboxes = new Set(mailboxes.map((m) => m.address.toLowerCase()))
+  const bucketOf = (e: Email) => mailboxKey(e, knownMailboxes)
+
+  // The mailbox filter stacks on top of the folder filter: Inbox for one
+  // address, or Inbox across every address the Resend key receives on.
+  const inMailbox = allEmails.filter(
+    (e) => mailbox === null || bucketOf(e) === mailbox
+  )
+
+  const emails = inMailbox.filter((e) => {
     if (folder === "inbox")
       return e.direction === "inbound" && !e.archived && !e.is_draft
     if (folder === "sent")
@@ -105,11 +135,27 @@ export default function Page() {
     return false
   })
 
-  const unreadCount = allEmails.filter(
-    (e) => !e.is_read && e.direction === "inbound" && !e.archived && !e.is_draft
-  ).length
+  const isUnreadInbox = (e: Email) =>
+    !e.is_read && e.direction === "inbound" && !e.archived && !e.is_draft
 
-  const draftCount = allEmails.filter((e) => e.is_draft && !e.archived).length
+  const unreadCount = inMailbox.filter(isUnreadInbox).length
+
+  const draftCount = inMailbox.filter((e) => e.is_draft && !e.archived).length
+
+  const unreadByMailbox = allEmails.reduce<Record<string, number>>((acc, e) => {
+    if (isUnreadInbox(e)) {
+      const key = bucketOf(e)
+      acc[key] = (acc[key] ?? 0) + 1
+    }
+    return acc
+  }, {})
+
+  const hasOther = allEmails.some((e) => bucketOf(e) === OTHER_MAILBOX)
+
+  // Only worth labelling a message when the view can mix mailboxes — the same
+  // condition that makes the sidebar switcher appear.
+  const showMailbox =
+    mailbox === null && mailboxes.length + (hasOther ? 1 : 0) > 1
 
   if (isMobile) {
     return (
@@ -122,6 +168,7 @@ export default function Page() {
             onDelete={handleDelete}
             onPermanentDelete={handlePermanentDelete}
             onBack={() => setSelected(null)}
+            showMailbox={showMailbox}
             isMobile
           />
         ) : (
@@ -133,6 +180,7 @@ export default function Page() {
               folder={folder}
               onSelect={setSelected}
               onMenuClick={() => setSidebarOpen(true)}
+              showMailbox={showMailbox}
               isMobile
             />
             <div
@@ -161,6 +209,13 @@ export default function Page() {
                   }}
                   unreadCount={unreadCount}
                   draftCount={draftCount}
+                  activeMailbox={mailbox}
+                  onMailboxSelect={(m) => {
+                    setMailbox(m)
+                    setSidebarOpen(false)
+                  }}
+                  unreadByMailbox={unreadByMailbox}
+                  hasOther={hasOther}
                   hideBorder
                 />
               </div>
@@ -190,6 +245,10 @@ export default function Page() {
             onSelect={setFolder}
             unreadCount={unreadCount}
             draftCount={draftCount}
+            activeMailbox={mailbox}
+            onMailboxSelect={setMailbox}
+            unreadByMailbox={unreadByMailbox}
+            hasOther={hasOther}
           />
         </ResizablePanel>
 
@@ -202,6 +261,7 @@ export default function Page() {
             loading={loading}
             folder={folder}
             onSelect={setSelected}
+            showMailbox={showMailbox}
           />
         </ResizablePanel>
 
@@ -214,6 +274,7 @@ export default function Page() {
             onMarkRead={handleMarkRead}
             onDelete={handleDelete}
             onPermanentDelete={handlePermanentDelete}
+            showMailbox={showMailbox}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

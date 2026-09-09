@@ -23,6 +23,8 @@ interface EmailListProps {
   folder: string
   onSelect: (email: Email) => void
   onMenuClick?: () => void
+  /** Label each card with the mailbox it belongs to (mixed-mailbox lists). */
+  showMailbox?: boolean
   isMobile?: boolean
 }
 
@@ -33,6 +35,7 @@ export function EmailList({
   folder,
   onSelect,
   onMenuClick,
+  showMailbox,
   isMobile,
 }: EmailListProps) {
   const [query, setQuery] = useState("")
@@ -43,6 +46,7 @@ export function EmailList({
         return (
           e.subject.toLowerCase().includes(q) ||
           e.from_address.toLowerCase().includes(q) ||
+          e.to_address.toLowerCase().includes(q) ||
           (e.from_name ?? "").toLowerCase().includes(q)
         )
       })
@@ -104,6 +108,7 @@ export function EmailList({
                   email={email}
                   selected={email.id === selectedId}
                   folder={folder}
+                  showMailbox={showMailbox}
                   onClick={() => onSelect(email)}
                 />
               ))}

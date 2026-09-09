@@ -4,6 +4,8 @@ export interface Email {
   from_address: string
   from_name: string | null
   to_address: string
+  /** Configured mailbox this message belongs to (lowercased address). */
+  mailbox: string | null
   subject: string
   body_html: string | null
   body_text: string | null

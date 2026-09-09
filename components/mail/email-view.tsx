@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
+import { accountLabel } from "@/lib/accounts"
+import { useMailboxes } from "./mailbox-provider"
 import { Composer } from "./composer"
 import type { Email } from "@/lib/types"
 
@@ -24,6 +26,8 @@ interface EmailViewProps {
   onDelete?: (id: string) => void
   onPermanentDelete?: (id: string) => void
   onBack?: () => void
+  /** Label the message with the mailbox it belongs to (mixed-mailbox views). */
+  showMailbox?: boolean
   isMobile?: boolean
 }
 
@@ -43,12 +47,15 @@ export function EmailView({
   onDelete,
   onPermanentDelete,
   onBack,
+  showMailbox,
   isMobile,
 }: EmailViewProps) {
+  const { mailboxes } = useMailboxes()
   const [iframeHeight, setIframeHeight] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   const [composerData, setComposerData] = useState<{
+    fromAddress?: string | null
     to?: string
     subject?: string
     body?: string
@@ -120,6 +127,8 @@ export function EmailView({
 
   const handleReply = () => {
     setComposerData({
+      // Answer from the mailbox the message arrived on.
+      fromAddress: email.mailbox,
       to: email.from_address,
       subject: `Re: ${email.subject}`,
       body: `\n\n--- On ${date}, ${sender} wrote ---\n\n${email.body_text}`,
@@ -129,6 +138,7 @@ export function EmailView({
 
   const handleForward = () => {
     setComposerData({
+      fromAddress: email.mailbox,
       to: "",
       subject: `Fwd: ${email.subject}`,
       body: `\n\n--- Forwarded message ---\nFrom: ${sender} <${email.from_address}>\nDate: ${date}\nSubject: ${email.subject}\n\n${email.body_text}`,
@@ -138,6 +148,7 @@ export function EmailView({
 
   const handleEditDraft = () => {
     setComposerData({
+      fromAddress: email.mailbox ?? email.from_address,
       to: email.to_address,
       subject: email.subject,
       body: email.body_text ?? "",
@@ -174,6 +185,14 @@ export function EmailView({
               {email.subject}
             </h1>
           </div>
+          {showMailbox && email.mailbox && (
+            <span
+              className="max-w-40 shrink-0 truncate rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              title={email.mailbox}
+            >
+              {accountLabel(mailboxes, email.mailbox)}
+            </span>
+          )}
         </div>
 
         <div className="mt-4 flex items-center gap-3">

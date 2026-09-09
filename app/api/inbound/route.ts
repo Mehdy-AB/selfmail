@@ -1,6 +1,8 @@
 import { Webhook } from "svix"
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
+import { normalizeMailbox, parseAddress, routeRecipients } from "@/lib/accounts"
+import { getMailboxes } from "@/lib/mailboxes"
 
 const supabase = createServiceClient()
 
@@ -17,20 +19,13 @@ interface ResendInboundPayload {
     email_id: string
     from: string
     to: string[]
+    cc?: string[]
+    bcc?: string[]
     subject: string
     html: string | null
     text: string | null
     attachments?: ResendAttachment[]
   }
-}
-
-function parseFrom(from: string): { address: string; name: string | null } {
-  // Handles both "Name <email@example.com>" and "email@example.com"
-  const match = from.match(/^(.+?)\s*<(.+?)>$/)
-  if (match) {
-    return { name: match[1].trim(), address: match[2].trim() }
-  }
-  return { name: null, address: from.trim() }
 }
 
 export async function POST(req: NextRequest) {
@@ -61,7 +56,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true })
   }
 
-  const { email_id, from, to, subject, attachments = [] } = event.data
+  const {
+    email_id,
+    from,
+    to,
+    cc = [],
+    bcc = [],
+    subject,
+    attachments = [],
+  } = event.data
 
   const receivedRes = await fetch(
     `https://api.resend.com/emails/receiving/${email_id}`,
@@ -72,7 +75,16 @@ export async function POST(req: NextRequest) {
     : {}
   const html = receivedEmail.html ?? null
   const text = receivedEmail.text ?? null
-  const { name: fromName, address: fromAddress } = parseFrom(from)
+  const sender = parseAddress(from)
+  const fromAddress = sender?.address ?? from.trim()
+  const fromName = sender?.name ?? null
+
+  // A single Resend key receives for every mailbox, so work out which one this
+  // message belongs to before storing it.
+  const mailboxes = await getMailboxes()
+  const routed = routeRecipients(mailboxes, [...to, ...cc, ...bcc])
+  const toAddress = routed.recipient ?? to[0] ?? ""
+  const mailbox = normalizeMailbox(routed.account?.address ?? toAddress)
 
   const blockedSenders = (process.env.BLOCKED_SENDERS ?? "")
     .split(",")
@@ -82,17 +94,23 @@ export async function POST(req: NextRequest) {
     fromAddress.toLowerCase().includes(b)
   )
 
+  // With MAILBOX_STRICT set, mail to an address that is not one of ours (a
+  // catch-all domain collecting spam) is filed straight to Trash.
+  const isUnrouted = mailboxes.length > 0 && !routed.account
+  const strict = process.env.MAILBOX_STRICT === "true"
+
   const { data: email, error: emailError } = await supabase
     .from("emails")
     .insert({
       resend_id: email_id,
       from_address: fromAddress,
       from_name: fromName,
-      to_address: to[0],
+      to_address: toAddress,
+      mailbox,
       subject,
       body_html: html,
       body_text: text,
-      archived: isBlocked,
+      archived: isBlocked || (strict && isUnrouted),
     })
     .select("id")
     .single()

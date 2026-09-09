@@ -3,6 +3,13 @@
 import { Resend } from "resend"
 import { createServiceClient } from "@/lib/supabase/service"
 import { createClient } from "@/lib/supabase/server"
+import {
+  findAccount,
+  formatSender,
+  normalizeMailbox,
+  type MailAccount,
+} from "@/lib/accounts"
+import { getMailboxes } from "@/lib/mailboxes"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -14,14 +21,23 @@ async function requireAuth() {
   if (!user) throw new Error("Unauthorized")
 }
 
-function validateFromAddress(fromAddress: string) {
-  const allowed = (process.env.NEXT_PUBLIC_FROM_ADDRESSES ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (allowed.length > 0 && !allowed.includes(fromAddress)) {
+/**
+ * Only a mailbox that exists may be used as the sender. Returns the current
+ * list so callers do not have to load it twice.
+ */
+async function requireAccount(fromAddress: string): Promise<MailAccount[]> {
+  const mailboxes = await getMailboxes()
+  if (mailboxes.length > 0 && !findAccount(mailboxes, fromAddress)) {
     throw new Error("Invalid sender address")
   }
+  return mailboxes
+}
+
+/** Display name for a mailbox: its own name, else the shared FROM_NAME. */
+function senderName(mailboxes: MailAccount[], fromAddress: string) {
+  return (
+    findAccount(mailboxes, fromAddress)?.name ?? process.env.FROM_NAME ?? "Mail"
+  )
 }
 
 interface SendEmailInput {
@@ -43,10 +59,10 @@ interface SaveDraftInput {
 export async function sendEmail(input: SendEmailInput) {
   await requireAuth()
   const { fromAddress, to, subject, body, draftId } = input
-  validateFromAddress(fromAddress)
+  const mailboxes = await requireAccount(fromAddress)
 
   const { data, error } = await resend.emails.send({
-    from: `${process.env.FROM_NAME ?? "Mail"} <${fromAddress}>`,
+    from: formatSender(mailboxes, fromAddress, process.env.FROM_NAME),
     to,
     subject,
     text: body,
@@ -64,6 +80,9 @@ export async function sendEmail(input: SendEmailInput) {
       .update({
         resend_id: data!.id,
         is_draft: false,
+        from_address: fromAddress,
+        from_name: senderName(mailboxes, fromAddress),
+        mailbox: normalizeMailbox(fromAddress),
         to_address: to,
         subject,
         body_text: body,
@@ -74,7 +93,8 @@ export async function sendEmail(input: SendEmailInput) {
     await db.from("emails").insert({
       resend_id: data!.id,
       from_address: fromAddress,
-      from_name: process.env.FROM_NAME ?? "Mail",
+      from_name: senderName(mailboxes, fromAddress),
+      mailbox: normalizeMailbox(fromAddress),
       to_address: to,
       subject,
       body_text: body,
@@ -89,7 +109,7 @@ export async function sendEmail(input: SendEmailInput) {
 export async function saveDraft(input: SaveDraftInput) {
   await requireAuth()
   const { fromAddress, to, subject, body, draftId } = input
-  validateFromAddress(fromAddress)
+  const mailboxes = await requireAccount(fromAddress)
 
   const db = createServiceClient()
 
@@ -98,6 +118,8 @@ export async function saveDraft(input: SaveDraftInput) {
       .from("emails")
       .update({
         from_address: fromAddress,
+        from_name: senderName(mailboxes, fromAddress),
+        mailbox: normalizeMailbox(fromAddress),
         to_address: to || "",
         subject: subject || "",
         body_text: body,
@@ -112,7 +134,8 @@ export async function saveDraft(input: SaveDraftInput) {
     .from("emails")
     .insert({
       from_address: fromAddress,
-      from_name: process.env.FROM_NAME ?? "Mail",
+      from_name: senderName(mailboxes, fromAddress),
+      mailbox: normalizeMailbox(fromAddress),
       to_address: to || "",
       subject: subject || "",
       body_text: body,
