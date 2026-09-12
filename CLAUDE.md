@@ -32,12 +32,13 @@ addresses across any number of domains. The mailbox list lives in the
   - `app/actions/mailboxes.ts` — Server actions backing the mailbox settings dialog (`createMailbox`, `updateMailbox`, `deleteMailbox`)
   - `app/auth/callback/route.ts` — Supabase magic-link callback; enforces `ALLOWED_EMAIL` env var
   - `app/layout.tsx` — Root layout; uses `NEXT_PUBLIC_APP_DOMAIN` for dynamic title/description
-- `components/mail/` — Core UI: `Sidebar`, `EmailList`, `EmailCard`, `EmailView`, `Composer`, `SplashScreen`, `MailboxSettings`
+- `components/mail/` — Core UI: `Sidebar`, `EmailList`, `EmailCard`, `EmailView`, `Composer`, `SplashScreen`, `MailboxSettings`, `MailboxAvatar`
 - `components/mail/mailbox-provider.tsx` — client context holding the live mailbox list (Realtime-subscribed); read it with `useMailboxes()` rather than importing the list
 - `components/ui/` — shadcn/ui primitives (added via CLI, not hand-authored)
 - `components/theme-provider.tsx` — next-themes wrapper; `d` hotkey toggles dark/light mode
 - `lib/accounts.ts` — pure mailbox helpers (parse, validate, label, route). Every function takes the mailbox list as its first argument; the module holds no list of its own
 - `lib/mailboxes.ts` — server-only `getMailboxes()`: reads the `mailboxes` table, seeding it once from `NEXT_PUBLIC_MAIL_ACCOUNTS` if the table is empty
+- `lib/resize-image.ts` — browser-only: crops a chosen photo square and shrinks it to a small JPEG before upload
 - `lib/supabase/` — SSR-aware Supabase client, server, and middleware helpers
 - `proxy.ts` — Next.js middleware: redirects unauthenticated users to `/login`
 - `supabase/migrations/` — All database migrations in order
@@ -67,3 +68,5 @@ Key variables:
 - `NEXT_PUBLIC_` prefix required for any env var used in client components (inlined at build time)
 - Client components get the mailbox list from `useMailboxes()`; server code calls `getMailboxes()`. Never import a mailbox list from `lib/accounts.ts` — it has none
 - Every email row carries a `mailbox` column (lowercased address) — the account it belongs to. Inbound sets it from the matched recipient, outbound from the sender
+- Mailbox photos: `mailboxes.avatar_path` holds a path in the public `avatars` bucket; render with `MailboxAvatar` (or `avatarUrl()` for the URL). Each upload gets a new path so cached old photos never linger
+- Read `mailboxes` with `select("*")`, not a column list — naming a column the database lacks fails the whole query, and the mailbox list disappears

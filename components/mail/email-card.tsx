@@ -2,7 +2,8 @@
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import { accountLabel } from "@/lib/accounts"
+import { accountLabel, findAccount } from "@/lib/accounts"
+import { MailboxAvatar } from "./mailbox-avatar"
 import { useMailboxes } from "./mailbox-provider"
 import type { Email } from "@/lib/types"
 
@@ -43,6 +44,7 @@ export function EmailCard({
   onClick,
 }: EmailCardProps) {
   const { mailboxes } = useMailboxes()
+  const ownMailbox = findAccount(mailboxes, email.mailbox)
   const isOutbound = email.direction === "outbound"
   const displayName = isOutbound
     ? `To: ${email.to_address}`
@@ -83,10 +85,18 @@ export function EmailCard({
           <div className="flex items-center gap-1.5">
             {showMailbox && email.mailbox && (
               <span
-                className="max-w-28 shrink-0 truncate rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground"
+                className="inline-flex max-w-28 min-w-0 shrink-0 items-center gap-1 rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground"
                 title={email.mailbox}
               >
-                {accountLabel(mailboxes, email.mailbox)}
+                {ownMailbox?.avatar_path && (
+                  <MailboxAvatar
+                    mailbox={ownMailbox}
+                    className="size-3.5 after:hidden"
+                  />
+                )}
+                <span className="truncate">
+                  {accountLabel(mailboxes, email.mailbox)}
+                </span>
               </span>
             )}
             {folder === "trash" && (

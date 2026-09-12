@@ -9,11 +9,13 @@ import {
   AtSign,
   Mails,
   Settings2,
+  type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { OTHER_MAILBOX } from "@/lib/accounts"
 import { Composer } from "./composer"
-import { useMailboxes } from "./mailbox-provider"
+import { MailboxAvatar } from "./mailbox-avatar"
+import { useMailboxes, type Mailbox } from "./mailbox-provider"
 import { MailboxSettings } from "./mailbox-settings"
 
 const folders = [
@@ -22,6 +24,15 @@ const folders = [
   { label: "Drafts", icon: FileText, value: "drafts" },
   { label: "Trash", icon: Trash2, value: "trash" },
 ]
+
+interface Bucket {
+  key: string | null
+  label: string
+  title: string
+  icon: LucideIcon
+  /** Set for a real mailbox, whose photo replaces the icon. */
+  mailbox?: Mailbox
+}
 
 interface SidebarProps {
   active: string
@@ -54,13 +65,14 @@ export function Sidebar({
   const { mailboxes } = useMailboxes()
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const buckets = [
+  const buckets: Bucket[] = [
     { key: null, label: "All mail", title: "Every mailbox", icon: Mails },
     ...mailboxes.map((mailbox) => ({
       key: mailbox.address.toLowerCase(),
       label: mailbox.name ?? mailbox.address,
       title: mailbox.address,
       icon: AtSign,
+      mailbox,
     })),
     ...(hasOther
       ? [
@@ -151,7 +163,7 @@ export function Sidebar({
           </button>
         ) : (
           showBuckets &&
-          buckets.map(({ key, label, title, icon: Icon }) => {
+          buckets.map(({ key, label, title, icon: Icon, mailbox }) => {
             const unread = key === null ? 0 : (unreadByMailbox[key] ?? 0)
             return (
               <button
@@ -165,7 +177,16 @@ export function Sidebar({
                     : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
                 )}
               >
-                <Icon className="size-4 shrink-0" />
+                {mailbox ? (
+                  // -mx-0.5 keeps labels aligned with the 16px icons above
+                  <MailboxAvatar
+                    mailbox={mailbox}
+                    className="-mx-0.5 size-5"
+                    fallbackClassName="text-[9px]"
+                  />
+                ) : (
+                  <Icon className="size-4 shrink-0" />
+                )}
                 <span className="flex-1 truncate text-left">{label}</span>
                 {unread > 0 && (
                   <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground tabular-nums">

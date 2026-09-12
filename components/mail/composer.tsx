@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 import { sendEmail, saveDraft } from "@/app/actions/send-email"
 import { findAccount, type MailAccount } from "@/lib/accounts"
+import { MailboxAvatar } from "./mailbox-avatar"
 import { useMailboxes } from "./mailbox-provider"
 
 const NO_MAILBOX: MailAccount = { address: "", name: null }
@@ -189,6 +190,7 @@ export function Composer({
   }
 
   const canSend = !isPending && !!to && !!subject && !!body && !!fromAddress
+  const selectedMailbox = findAccount(mailboxes, fromAddress)
 
   return (
     <>
@@ -325,6 +327,13 @@ export function Composer({
                   <span className="flex-1 py-2 text-sm text-muted-foreground">
                     No mailboxes yet — add one under Mailboxes in the sidebar
                   </span>
+                )}
+                {selectedMailbox && (
+                  <MailboxAvatar
+                    mailbox={selectedMailbox}
+                    className="mr-2 size-5"
+                    fallbackClassName="text-[9px]"
+                  />
                 )}
                 <select
                   value={fromAddress}

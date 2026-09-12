@@ -3,16 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/service"
 import { normalizeMailbox, parseAddress, routeRecipients } from "@/lib/accounts"
 import { getMailboxes } from "@/lib/mailboxes"
+import { saveAttachments } from "@/lib/inbound-attachments"
 
 const supabase = createServiceClient()
 
-interface ResendAttachment {
-  filename: string
-  content_type: string
-  size: number
-  content: string // base64
-}
-
+// The email.received event carries metadata only: the body and the attachment
+// files are fetched from Resend's Receiving API afterwards.
 interface ResendInboundPayload {
   type: string
   data: {
@@ -21,10 +17,10 @@ interface ResendInboundPayload {
     to: string[]
     cc?: string[]
     bcc?: string[]
-    subject: string
-    html: string | null
-    text: string | null
-    attachments?: ResendAttachment[]
+    /** Addresses Resend actually received for; differs from `to` when forwarded. */
+    received_for?: string[]
+    subject?: string
+    attachments?: { id: string }[]
   }
 }
 
@@ -62,6 +58,7 @@ export async function POST(req: NextRequest) {
     to,
     cc = [],
     bcc = [],
+    received_for = [],
     subject,
     attachments = [],
   } = event.data
@@ -70,6 +67,11 @@ export async function POST(req: NextRequest) {
     `https://api.resend.com/emails/receiving/${email_id}`,
     { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` } }
   )
+  if (!receivedRes.ok) {
+    // Still store the message — the metadata is enough to show it — but make
+    // the cause findable. Usually a wrong or revoked RESEND_API_KEY.
+    console.error("[inbound] body fetch failed", email_id, receivedRes.status)
+  }
   const receivedEmail = receivedRes.ok
     ? ((await receivedRes.json()) as { html?: string; text?: string })
     : {}
@@ -82,7 +84,13 @@ export async function POST(req: NextRequest) {
   // A single Resend key receives for every mailbox, so work out which one this
   // message belongs to before storing it.
   const mailboxes = await getMailboxes()
-  const routed = routeRecipients(mailboxes, [...to, ...cc, ...bcc])
+  // received_for first: on forwarded mail it is the address that received it.
+  const routed = routeRecipients(mailboxes, [
+    ...received_for,
+    ...to,
+    ...cc,
+    ...bcc,
+  ])
   const toAddress = routed.recipient ?? to[0] ?? ""
   const mailbox = normalizeMailbox(routed.account?.address ?? toAddress)
 
@@ -107,7 +115,7 @@ export async function POST(req: NextRequest) {
       from_name: fromName,
       to_address: toAddress,
       mailbox,
-      subject,
+      subject: subject ?? "",
       body_html: html,
       body_text: text,
       archived: isBlocked || (strict && isUnrouted),
@@ -124,26 +132,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "DB error" }, { status: 500 })
   }
 
-  for (const att of attachments) {
-    const buffer = Buffer.from(att.content, "base64")
-    const storagePath = `${email.id}/${att.filename}`
-
-    const { error: uploadError } = await supabase.storage
-      .from("attachments")
-      .upload(storagePath, buffer, { contentType: att.content_type })
-
-    if (uploadError) {
-      console.error("[inbound] attachment upload error", uploadError)
-      continue
-    }
-
-    await supabase.from("attachments").insert({
-      email_id: email.id,
-      filename: att.filename,
-      content_type: att.content_type,
-      size_bytes: att.size,
-      storage_path: storagePath,
-    })
+  // Skip the API call entirely for the common case of no attachments.
+  if (attachments.length > 0) {
+    await saveAttachments(supabase, email.id, email_id)
   }
 
   return NextResponse.json({ received: true })

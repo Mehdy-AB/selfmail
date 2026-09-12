@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
-import { accountLabel } from "@/lib/accounts"
+import { accountLabel, findAccount } from "@/lib/accounts"
+import { MailboxAvatar } from "./mailbox-avatar"
 import { useMailboxes } from "./mailbox-provider"
 import { Composer } from "./composer"
 import type { Email } from "@/lib/types"
@@ -116,6 +117,7 @@ export function EmailView({
   }
 
   const isOutbound = email.direction === "outbound"
+  const ownMailbox = findAccount(mailboxes, email.mailbox)
   const sender = email.from_name ?? email.from_address
   const date = new Date(email.created_at).toLocaleString(undefined, {
     weekday: "short",
@@ -187,10 +189,18 @@ export function EmailView({
           </div>
           {showMailbox && email.mailbox && (
             <span
-              className="max-w-40 shrink-0 truncate rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              className="inline-flex max-w-40 min-w-0 shrink-0 items-center gap-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
               title={email.mailbox}
             >
-              {accountLabel(mailboxes, email.mailbox)}
+              {ownMailbox?.avatar_path && (
+                <MailboxAvatar
+                  mailbox={ownMailbox}
+                  className="size-4 after:hidden"
+                />
+              )}
+              <span className="truncate">
+                {accountLabel(mailboxes, email.mailbox)}
+              </span>
             </span>
           )}
         </div>

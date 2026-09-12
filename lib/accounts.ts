@@ -90,10 +90,10 @@ function domainOf(address: string): string {
 }
 
 /** Case-insensitive lookup of a mailbox. */
-export function findAccount(
-  accounts: MailAccount[],
+export function findAccount<T extends MailAccount>(
+  accounts: T[],
   address: string | null | undefined
-): MailAccount | undefined {
+): T | undefined {
   if (!address) return undefined
   const key = address.trim().toLowerCase()
   return accounts.find((a) => a.address.toLowerCase() === key)
@@ -167,3 +167,6 @@ export function formatSender(
 
 /** Sidebar bucket for mail that did not match any configured mailbox. */
 export const OTHER_MAILBOX = "__other__"
+
+/** Storage bucket holding mailbox photos. Shared by server and client code. */
+export const AVATAR_BUCKET = "avatars"

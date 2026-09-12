@@ -124,6 +124,11 @@ What this gives you:
   `MAILBOX_STRICT=true` to send that unrouted mail straight to Trash instead.
 - **Reply from the right address** — a reply or forward defaults to the mailbox
   the message arrived on, and sends with that mailbox's display name.
+- **A photo per mailbox** — in the settings dialog, click a mailbox's picture to
+  upload one. It is cropped square and shrunk to 256px in the browser, then
+  shown in the sidebar, the composer and on message labels. It is for you only:
+  recipients' mail apps pick sender avatars themselves (from the sender's Google
+  account, Gravatar or BIMI), and nothing sent through Resend can set that.
 
 Only a saved mailbox may be used as a sender; the server action rejects
 anything else.
@@ -133,8 +138,10 @@ kept and move to the **Other** bucket.
 
 ### Upgrading an existing deployment
 
-Run both migrations: `20260908_add_mailbox.sql` backfills the `mailbox` column
-on your existing messages, and `20260909_mailboxes.sql` adds the table.
+Run the new migrations: `20260908_add_mailbox.sql` backfills the `mailbox`
+column on your existing messages, `20260909_mailboxes.sql` adds the table, and
+`20260912_mailbox_avatars.sql` adds mailbox photos and their public `avatars`
+storage bucket.
 
 If you were already using `NEXT_PUBLIC_MAIL_ACCOUNTS` (or the older
 `NEXT_PUBLIC_FROM_ADDRESSES`), leave it set for one deploy: the first time the
