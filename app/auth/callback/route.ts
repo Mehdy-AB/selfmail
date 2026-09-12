@@ -27,12 +27,12 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     const allowedEmail = process.env.ALLOWED_EMAIL
     if (!error && (!allowedEmail || data.user?.email?.toLowerCase() === allowedEmail.toLowerCase())) {
-      return NextResponse.redirect(`${origin}/`)
+      return NextResponse.redirect(`https://email.mehdiaouneelbabda-developpeur.dz/`)
     }
     if (!error) {
       await supabase.auth.signOut()
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_failed`)
+  return NextResponse.redirect(`https://email.mehdiaouneelbabda-developpeur.dz/login?error=auth_failed`)
 }
